@@ -1,7 +1,8 @@
 # dhctl
 
-A small CLI for the [DreamHost API](https://help.dreamhost.com/hc/en-us/articles/217560167-API-overview):
-list, add and remove DNS records, plus raw access to any other API command.
+A CLI for the [DreamHost API](https://help.dreamhost.com/hc/en-us/articles/217560167-API-overview),
+covering every command it still has: DNS records, announcement lists and the API
+metacommands, plus raw access for anything new.
 
 ```bash
 go install github.com/dorkitude/dhctl@latest
@@ -26,12 +27,38 @@ The key is saved to `~/.config/dhctl/key` (0600; override the directory with
 `$DHCTL_CONFIG_DIR`). `$DREAMHOST_API_KEY` overrides the saved key. dhctl never prints
 the key, including in errors.
 
+## What the API covers
+
+DreamHost removed its account, domain, mail, MySQL, user and rewards commands. The panel's
+key page (2026-10) offers exactly these, and dhctl covers all of them:
+
+| API command | dhctl |
+| --- | --- |
+| `api-list_accessible_cmds` | `dhctl whoami`, `dhctl auth status` |
+| `api-list_keys` (all-functions keys only) | `dhctl keys list` |
+| `dns-list_records` | `dhctl dns list` |
+| `dns-add_record` | `dhctl dns add` (and `dns update`) |
+| `dns-remove_record` | `dhctl dns rm` (and `dns update`) |
+| `announcement_list-list_lists` | `dhctl announce list` |
+| `announcement_list-list_subscribers` | `dhctl announce subscribers` |
+| `announcement_list-add_subscriber` | `dhctl announce subscribe` |
+| `announcement_list-remove_subscriber` | `dhctl announce unsubscribe` |
+| `announcement_list-post_announcement` | `dhctl announce post` |
+
+Global flags: `--json` on every command, `--account <number>` to run under another
+account you can access, and `--unique-id <id>` (up to 64 characters). DreamHost runs a
+given `unique_id` successfully only once per key, so reusing one makes a retried write
+safe. A rate-limited call (`slow_down_bucko`) gets a clear "wait and retry" error.
+
+Try it read-only with DreamHost's public demo key: `DREAMHOST_API_KEY=6SHU5P2HLDAYECUM dhctl dns list`.
+
 ## DNS
 
 ```bash
 dhctl dns list                                   # every record on the account
 dhctl dns list --zone example.com --type A       # filter by zone, type or --record
 dhctl dns add www.example.com A 203.0.113.10 --comment "web"
+dhctl dns update www.example.com A 203.0.113.10 203.0.113.20   # add new, then remove old
 dhctl dns rm old.example.com A 203.0.113.10      # asks you to type the name; --yes skips
 ```
 
@@ -39,9 +66,28 @@ dhctl dns rm old.example.com A 203.0.113.10      # asks you to type the name; --
 - `rm` needs an exact record, type and value match. It looks the record up first and
   explains a typo or a DreamHost-managed (`editable=0`) record instead of failing blind.
   Off a terminal it refuses without `--yes`.
-- The API has **no update**. To change a record, `add` the new one, then `rm` the old one.
+- The API has **no update**. `dns update` adds the new record, then removes the old one;
+  if the removal fails, it tells you both exist.
+- `add` accepts A, AAAA, CNAME, NAPTR, NS, SRV and TXT (what the API takes). Long values
+  are truncated in the table; `--wide` shows them in full.
 - New records can take a few hours to propagate (DreamHost's note).
 - Every command takes `--json`.
+
+## Announcement lists
+
+Lists are named by address, `listname@domain`.
+
+```bash
+dhctl announce list
+dhctl announce subscribers news@example.com
+dhctl announce subscribe news@example.com someone@example.org --name "Some One"
+dhctl announce unsubscribe news@example.com someone@example.org      # confirms; --yes skips
+dhctl announce post news@example.com "October update" --file update.txt --type text --yes
+```
+
+`post` emails every subscriber, so it refuses without `--yes`. The body comes from `--file`
+or stdin. Optional: `--name` (sender), `--stamp "YYYY-MM-DD HH:MM:SS"` (schedule),
+`--charset`, `--type text|html`, `--duplicate-ok`.
 
 ## Anything else
 

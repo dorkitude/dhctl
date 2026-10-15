@@ -26,6 +26,13 @@ type Client struct {
 	Key     string
 	BaseURL string
 	HTTP    *http.Client
+	// Account, when set, is sent as `account` to run commands under that account
+	// (from the panel's Manage Account page). Empty means the key's own account.
+	Account string
+	// UniqueID, when set, is sent as `unique_id` instead of a random one. DreamHost
+	// runs a given unique_id successfully only once per key, so reusing one makes a
+	// retried write safe.
+	UniqueID string
 }
 
 // New returns a client for key with the default endpoint.
@@ -40,8 +47,15 @@ type APIError struct {
 }
 
 func (e *APIError) Error() string {
+	if e.RateLimited() {
+		return fmt.Sprintf("dreamhost %s: rate limited (%s); wait and retry", e.Cmd, e.Reason)
+	}
 	return fmt.Sprintf("dreamhost %s: %s", e.Cmd, e.Reason)
 }
+
+// RateLimited reports DreamHost's `slow_down_bucko` error. Rejected calls don't count
+// against the limit.
+func (e *APIError) RateLimited() bool { return strings.HasPrefix(e.Reason, "slow_down_bucko") }
 
 type envelope struct {
 	Result string          `json:"result"`
@@ -58,7 +72,14 @@ func (c *Client) Call(ctx context.Context, cmd string, params map[string]string)
 	q.Set("key", c.Key)
 	q.Set("cmd", cmd)
 	q.Set("format", "json")
-	q.Set("unique_id", uniqueID())
+	if c.Account != "" {
+		q.Set("account", c.Account)
+	}
+	uid := c.UniqueID
+	if uid == "" {
+		uid = uniqueID()
+	}
+	q.Set("unique_id", uid)
 
 	base := c.BaseURL
 	if base == "" {
@@ -161,6 +182,110 @@ func (c *Client) AccessibleCmds(ctx context.Context) ([]AccessibleCmd, error) {
 		return nil, fmt.Errorf("dreamhost api-list_accessible_cmds: decoding: %w", err)
 	}
 	return cmds, nil
+}
+
+// ListKeys runs api-list_keys: every API key the account has created. DreamHost only
+// allows it for keys with access to all functions ("*").
+func (c *Client) ListKeys(ctx context.Context) ([]json.RawMessage, error) {
+	data, err := c.Call(ctx, "api-list_keys", nil)
+	if err != nil {
+		return nil, err
+	}
+	var rows []json.RawMessage
+	if err := json.Unmarshal(data, &rows); err != nil {
+		return nil, fmt.Errorf("dreamhost api-list_keys: decoding: %w", err)
+	}
+	return rows, nil
+}
+
+// List is one row of announcement_list-list_lists.
+type List struct {
+	AccountID      string `json:"account_id"`
+	Listname       string `json:"listname"`
+	Domain         string `json:"domain"`
+	Name           string `json:"name"`
+	StartDate      string `json:"start_date"`
+	MaxBounces     string `json:"max_bounces"`
+	NumSubscribers string `json:"num_subscribers"`
+}
+
+// Address returns listname@domain.
+func (l List) Address() string { return l.Listname + "@" + l.Domain }
+
+// Subscriber is one row of announcement_list-list_subscribers.
+type Subscriber struct {
+	Email         string `json:"email"`
+	Name          string `json:"name"`
+	Confirmed     any    `json:"confirmed"`
+	SubscribeDate string `json:"subscribe_date"`
+	NumBounces    any    `json:"num_bounces"`
+}
+
+// ListLists returns the account's announcement lists.
+func (c *Client) ListLists(ctx context.Context) ([]List, error) {
+	data, err := c.Call(ctx, "announcement_list-list_lists", nil)
+	if err != nil {
+		return nil, err
+	}
+	var ls []List
+	if err := json.Unmarshal(data, &ls); err != nil {
+		return nil, fmt.Errorf("dreamhost announcement_list-list_lists: decoding: %w", err)
+	}
+	return ls, nil
+}
+
+// ListSubscribers returns the subscribers of listname@domain.
+func (c *Client) ListSubscribers(ctx context.Context, listname, domain string) ([]Subscriber, error) {
+	data, err := c.Call(ctx, "announcement_list-list_subscribers", map[string]string{"listname": listname, "domain": domain})
+	if err != nil {
+		return nil, err
+	}
+	var subs []Subscriber
+	if err := json.Unmarshal(data, &subs); err != nil {
+		return nil, fmt.Errorf("dreamhost announcement_list-list_subscribers: decoding: %w", err)
+	}
+	return subs, nil
+}
+
+// AddSubscriber adds email (with an optional display name) to listname@domain.
+func (c *Client) AddSubscriber(ctx context.Context, listname, domain, email, name string) error {
+	p := map[string]string{"listname": listname, "domain": domain, "email": email}
+	if name != "" {
+		p["name"] = name
+	}
+	_, err := c.Call(ctx, "announcement_list-add_subscriber", p)
+	return err
+}
+
+// RemoveSubscriber removes email from listname@domain.
+func (c *Client) RemoveSubscriber(ctx context.Context, listname, domain, email string) error {
+	_, err := c.Call(ctx, "announcement_list-remove_subscriber", map[string]string{"listname": listname, "domain": domain, "email": email})
+	return err
+}
+
+// Announcement is a post to an announcement list. Optional fields are omitted when empty.
+type Announcement struct {
+	Listname, Domain, Subject, Message string
+	Name                               string // sender display name
+	Stamp                              string // send time, "YYYY-MM-DD HH:MM:SS"; empty sends now
+	Charset                            string // e.g. utf-8
+	Type                               string // "text" or "html"
+	DuplicateOK                        bool   // allow re-sending an identical message
+}
+
+// PostAnnouncement sends (or schedules) a message to every subscriber of the list.
+func (c *Client) PostAnnouncement(ctx context.Context, a Announcement) error {
+	p := map[string]string{"listname": a.Listname, "domain": a.Domain, "subject": a.Subject, "message": a.Message}
+	for k, v := range map[string]string{"name": a.Name, "stamp": a.Stamp, "charset": a.Charset, "type": a.Type} {
+		if v != "" {
+			p[k] = v
+		}
+	}
+	if a.DuplicateOK {
+		p["duplicate_ok"] = "1"
+	}
+	_, err := c.Call(ctx, "announcement_list-post_announcement", p)
+	return err
 }
 
 func uniqueID() string {
