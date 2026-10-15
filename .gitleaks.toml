@@ -1,0 +1,7 @@
+# DreamHost's public, read-only demo key (published in their API overview) is used in docs.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "DreamHost public demo API key"
+regexes = ['''6SHU5P2HLDAYECUM''']
