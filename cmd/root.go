@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/dorkitude/dhctl/internal/client"
@@ -14,8 +16,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version is set at build time by GoReleaser.
+// Version is set at build time by GoReleaser; `go install` builds fall back to the module
+// version from the build info.
 var Version = "dev"
+
+func init() {
+	if Version != "dev" {
+		return
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		Version = strings.TrimPrefix(bi.Main.Version, "v")
+	}
+}
 
 var (
 	jsonOutput  bool
@@ -40,11 +52,11 @@ A CLI for the DreamHost API.
 `,
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	Version:       Version,
 }
 
 // Execute runs the root command.
 func Execute() {
+	rootCmd.Version = Version
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, ui.Err(err.Error()))
 		os.Exit(1)
