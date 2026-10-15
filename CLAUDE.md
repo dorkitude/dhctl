@@ -13,7 +13,10 @@ dhctl is a Go CLI for the DreamHost API (Cobra + lipgloss), modeled on
   (`redact` covers transport errors and odd bodies; keep tests for it).
 - `internal/config/`: the key lives in `~/.config/dhctl/key` (0600), or `$DREAMHOST_API_KEY`.
 - Tests run against `httptest` fakes via the hidden `--base-url` flag: `go test ./...`.
-- Release: tag `vX.Y.Z` and push. `.github/workflows/release.yml` runs tests + GoReleaser.
-  Install with `go install github.com/dorkitude/dhctl@latest`.
+- Release: tag `vX.Y.Z` and push. `.github/workflows/release.yml` runs tests, GoReleaser
+  and `scripts/publish-apt.sh` (signed apt repo dorkitude/dhctl-apt on GitHub Pages). Then
+  run `scripts/publish-packages.sh vX.Y.Z` locally for the Homebrew tap
+  (dorkitude/homebrew-tap) and Scoop bucket (dorkitude/scoop-bucket). Same pattern as cfctl
+  and skimmer.
 - Destructive commands confirm on a TTY and require `--yes` otherwise.
 - Read-only live check: `DREAMHOST_API_KEY=6SHU5P2HLDAYECUM` is DreamHost's public demo key.

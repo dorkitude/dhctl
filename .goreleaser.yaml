@@ -17,6 +17,7 @@ builds:
     goos:
       - darwin
       - linux
+      - windows
     goarch:
       - amd64
       - arm64
@@ -27,9 +28,41 @@ archives:
       - dhctl
     formats:
       - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE
+      - README.md
+
+# Ubuntu/Debian (.deb) and Fedora/RHEL (.rpm) packages, attached to the release.
+# scripts/publish-apt.sh also signs the .debs into dorkitude/dhctl-apt.
+nfpms:
+  - id: packages
+    package_name: dhctl
+    ids:
+      - dhctl
+    formats:
+      - deb
+      - rpm
+    vendor: Kyle Wild
+    maintainer: Kyle Wild <kyle@kylewild.com>
+    homepage: https://github.com/dorkitude/dhctl
+    description: |-
+      CLI for the DreamHost API: DNS records, announcement lists and the API
+      metacommands.
+    license: MIT
+    bindir: /usr/bin
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/dhctl/LICENSE
 
 checksum:
   name_template: checksums.txt
+
+release:
+  name_template: "dhctl {{ .Tag }}"
 
 changelog:
   disable: true

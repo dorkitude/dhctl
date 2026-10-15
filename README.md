@@ -4,12 +4,49 @@ A CLI for the [DreamHost API](https://help.dreamhost.com/hc/en-us/articles/21756
 covering every command it still has: DNS records, announcement lists and the API
 metacommands, plus raw access for anything new.
 
+## Install
+
+### Homebrew (macOS/Linux)
+
+```bash
+brew install dorkitude/tap/dhctl
+```
+
+### apt (Ubuntu/Debian)
+
+```bash
+curl -fsSL https://dorkitude.github.io/dhctl-apt/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/dhctl.gpg
+echo "deb [signed-by=/usr/share/keyrings/dhctl.gpg] https://dorkitude.github.io/dhctl-apt stable main" | sudo tee /etc/apt/sources.list.d/dhctl.list
+sudo apt update && sudo apt install dhctl
+```
+
+The repository is [dorkitude/dhctl-apt](https://github.com/dorkitude/dhctl-apt). Its signing key
+fingerprint is `E74D C111 92E3 ECE3 885A 27A6 A2C8 BCC9 D46C 6B47`.
+
+### Scoop (Windows)
+
+```powershell
+scoop bucket add dorkitude https://github.com/dorkitude/scoop-bucket
+scoop install dorkitude/dhctl
+```
+
+### Fedora/RHEL (.rpm), or a .deb without the repository
+
+Download the package for your architecture from the
+[releases page](https://github.com/dorkitude/dhctl/releases), then:
+
+```bash
+sudo dnf install ./dhctl_*_linux_amd64.rpm   # Fedora/RHEL (arm64 on ARM)
+sudo apt install ./dhctl_*_linux_amd64.deb   # Ubuntu/Debian
+```
+
+### Go
+
 ```bash
 go install github.com/dorkitude/dhctl@latest
 ```
 
-Prebuilt binaries for macOS and Linux (amd64, arm64) are on the
-[releases page](https://github.com/dorkitude/dhctl/releases).
+Release archives for macOS, Linux and Windows (amd64, arm64) are on the releases page too.
 
 ## Auth
 
@@ -106,6 +143,10 @@ go test ./...
 go build -o dhctl .
 ```
 
-Releases: push a `vX.Y.Z` tag; GitHub Actions runs the tests and GoReleaser.
+Releases: push a `vX.Y.Z` tag. GitHub Actions runs the tests and GoReleaser (archives,
+.deb/.rpm), then `scripts/publish-apt.sh` signs the .debs into
+[dhctl-apt](https://github.com/dorkitude/dhctl-apt) (secrets `APT_GPG_PRIVATE_KEY`,
+`APT_DEPLOY_KEY`). Afterwards, run `scripts/publish-packages.sh vX.Y.Z` (needs `gh` with push
+access) to update the Homebrew tap and the Scoop bucket.
 
 MIT licensed.

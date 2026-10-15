@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go test ./...
+      - run: go vet ./... && go test ./...
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -27,3 +27,11 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Signs the .debs into dorkitude/dhctl-apt (GitHub Pages). The GPG key signs the
+      # repo; the deploy key can push to that one repo and nothing else.
+      - name: Publish apt repository
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          APT_DEPLOY_KEY: ${{ secrets.APT_DEPLOY_KEY }}
+        run: scripts/publish-apt.sh dist
