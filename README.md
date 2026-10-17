@@ -23,6 +23,8 @@ brew install dorkitude/tap/dhctl
 dhctl --help
 ```
 
+This installs the release's prebuilt, signed and notarized binary (one universal binary on macOS), so it needs neither Go nor the Xcode Command Line Tools. If you installed dhctl from the tap when it was a formula built from source, switch once: `brew uninstall dhctl && brew install dorkitude/tap/dhctl`.
+
 ### apt (Ubuntu/Debian)
 ```bash
 curl -fsSL https://dorkitude.github.io/dhctl-apt/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/dhctl.gpg
